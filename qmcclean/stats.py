@@ -111,7 +111,7 @@ def read_table(path):
     df = scalar_dat.read(str(path))
     if len(df) == 0:  # header only: give the columns their dtypes
         df = df.astype({c: (np.int64 if c in INT_COLS else np.float64) for c in df.columns})
-    return df
+    return df.copy()  # compact read tables
 
 
 def _table_problems(df, name):
