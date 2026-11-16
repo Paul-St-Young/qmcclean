@@ -13,7 +13,7 @@ from qharv.reel import scalar_dat
 from qharv.sieve import mean_df
 
 from . import jastrow
-from .config import OPT_JK_REL, OPT_LAST, OPT_NSIGMA, OPT_RPA_RATIO, SUBDIR
+from .config import OPT_JK_REL, OPT_K2U_DROP, OPT_LAST, OPT_NSIGMA, OPT_RPA_RATIO, SUBDIR
 from .layout import discover_opt
 from .record import now_et
 
@@ -194,6 +194,13 @@ def _rpa_check(L, df, reasons, last):
     if ratio < OPT_RPA_RATIO:
         reasons.append('small-k Jastrow below RPA: k²u_T = %.3g vs RPA %.3g at k = %.3g '
                        '(ratio %.2f < %.2f)' % (k0 ** 2 * uT, k0 ** 2 * uR, k0, ratio, OPT_RPA_RATIO))
+    y = shells[shells < kc] ** 2 * jastrow.trial_uk(xp, shells[shells < kc], axes=axes)
+    drop = 1 - y[0] / y.max()  # k^2 u should rise toward k -> 0, as RPA does
+    last['k2u_drop'] = float(drop)
+    if drop > OPT_K2U_DROP:
+        reasons.append('k²u_T turns down toward k→0: %.3g at k = %.3g vs peak %.3g at k = %.3g '
+                       '(%.0f%% below, limit %.0f%%)' % (y[0], k0, y.max(), shells[int(y.argmax())],
+                                                         100 * drop, 100 * OPT_K2U_DROP))
 
 
 def plot_uk(L, png, kmax=3.0):
