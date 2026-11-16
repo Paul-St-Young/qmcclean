@@ -11,6 +11,7 @@ OPT_LAST = 3  # last optimization steps examined
 OPT_NSIGMA = 3.0  # variance-trend significance
 OPT_JK_REL = 0.02  # max relative drift of jk2 coefficients
 OPT_RPA_RATIO = 0.72  # first-shell u_T/u_RPA floor
+OPT_K2U_DROP = 0.03  # max fractional dip of k^2 u_T at the first shell below its peak under kc
 DU_REL = 0.10  # relative u(k) correction regarded as significant
 
 BIG_SUFFIXES = ('.scalar.dat', '.dmc.dat', '.stat.h5', '.config.h5', '.random.h5')
