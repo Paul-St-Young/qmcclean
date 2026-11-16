@@ -137,3 +137,18 @@ def test_input_named_opt_xml(tmp_path):
     rep = check_opt(opt, nequil=8)
     assert not any('opt.in.xml' in r for r in rep.reasons), rep.reasons
     assert np.isfinite(rep.last['rpa_ratio'])
+
+
+def test_small_k_downturn_flags(tmp_path):
+    opt = make_opt(tmp_path, converged=True)
+    rep = check_opt(opt, nequil=8)
+    assert rep.last['k2u_drop'] == 0  # RPA-derived fake: k^2 u peaks at the first shell
+    x = opt / 'opt.s011.opt.xml'
+    old = x.read_text()
+    jk0 = float(re.search(r'id="jk2"[^>]*> *([^ <]+)', old).group(1))
+    u0 = rep.last['k2uT'] / rep.last['k_min'] ** 2
+    t = re.sub(r'(id="jk2"[^>]*>) *[^ <]+', r'\g<1> %r' % (jk0 + 0.15 * u0), old)  # u(k0) -15%
+    x.write_text(t)
+    rep = check_opt(opt, nequil=8)
+    assert rep.last['rpa_ratio'] > OPT_RPA_RATIO  # the ratio check alone would pass
+    assert rep.flagged and any('turns down' in r for r in rep.reasons)

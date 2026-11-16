@@ -659,3 +659,14 @@ def test_verify_kvecs_value_against_raw(tmp_path):
         f['kvecs'][1, 2] += 1e-13
     assert stats.verify_stats(p, L, R) == [
         's001: dmc.s001.stat.h5:/kvecs differs from twist 0 raw skall/kpoints/value']
+
+
+def test_read_table_wide_no_fragmentation_warning(tmp_path):
+    import warnings
+    cols = ['twist', 'nblock', 'nequil'] + ['f%d_mean' % i for i in range(300)]
+    f = tmp_path / 't.dat'
+    stats.write_table(f, cols, [{c: 1.0 for c in cols} for _ in range(3)])
+    df = stats.read_table(f)
+    with warnings.catch_warnings():
+        warnings.simplefilter('error', pd.errors.PerformanceWarning)
+        df.set_index('twist').reset_index()  # the insert that warned in flag_twists
