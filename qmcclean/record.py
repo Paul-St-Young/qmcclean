@@ -149,7 +149,7 @@ def _release(dmc_dir, twists, note, out):
             out['messages'].append('run is clean: nothing to release')
             return out
         left = sorted(flagged - done)
-        if not left:
+        if not left and v['kind'] != 'hold':
             out['messages'].append('all flagged twists already released')
             return out
         add = 'all'
@@ -166,6 +166,8 @@ def _release(dmc_dir, twists, note, out):
         out['released'] = list(add)
         if not add:
             return out
+        if v['kind'] == 'hold' and flagged <= done | set(add):
+            add = 'all'  # a hold run whose flagged twists are all released is cleaned whole
     user = os.environ.get('USER') or getpass.getuser()
     rec['released'].append({'twists': add, 'by': user, 'at_ET': now_et(), 'note': note})
     log(rec, 'released %s by %s: %s' % ('all' if add == 'all' else

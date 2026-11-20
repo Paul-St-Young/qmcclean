@@ -34,6 +34,16 @@ def test_release_all_on_hold(tmp_path):
     assert rec['state'] == 'cleaned' and bigs(dmc) == []
 
 
+def test_release_every_flagged_on_hold_becomes_all(tmp_path):
+    dmc = fake(tmp_path, short={i: 10 for i in range(6)})
+    run_dmc(dmc, clean=False)
+    assert record.release(dmc, [0, 1, 2], 'a')['released'] == [0, 1, 2]
+    r = record.release(dmc, [3, 4, 5], 'b')
+    assert r['released'] == [3, 4, 5] and record.load(dmc)['released'][-1]['twists'] == 'all'
+    rec = run_dmc(dmc, clean=True)
+    assert rec['state'] == 'cleaned' and bigs(dmc) == []
+
+
 def test_release_unflagged_is_noop(tmp_path):
     dmc = fake(tmp_path, short={5: 10})
     run_dmc(dmc, clean=True)
