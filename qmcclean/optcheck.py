@@ -258,6 +258,66 @@ def plot_uk(L, png, kmax=3.0):
     return ratio
 
 
+def plot_ev(L, df, png):
+    """ev.png for an opt run: E, V and jk2[0:3] vs series. Series N measures opt.s(N-1).opt.xml
+    (series 0 the input), so jk2 of step s is drawn at s+1, the series that measured it. The
+    series with the lowest 0.9E+0.1V is marked. Returns that series (None if E/V are missing)."""
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    from qharv.seed import xml
+    C1, BAD = '#2a78d6', '#c0392b'
+    fig, axs = plt.subplots(3, 1, figsize=(5.6, 7.4), sharex=True, gridspec_kw=dict(hspace=0.08))
+    best = None
+    if {'E', 'V'} <= set(df.columns) and df['E'].notna().any():
+        d = df.dropna(subset=['E', 'V'])
+        for a, c, lab in ((axs[0], 'E', 'E (Ha)'), (axs[1], 'V', 'V (Ha$^2$)')):
+            a.errorbar(d['series'], d[c], d[c + '_err'], c=C1, marker='o', ms=4, capsize=2, lw=1.2)
+            a.set_ylabel(lab)
+        score = 0.9 * d['E'] + 0.1 * d['V']
+        best = int(d['series'].iloc[int(np.argmin(score.to_numpy()))])
+    jk = df[['series'] + ['jk2_%d' % i for i in range(3) if 'jk2_%d' % i in df]].copy()
+    jk['series'] = jk['series'] + 1
+    try:
+        j0, _ = jastrow.jk2_of(xml.read(str(input_xml(L))))
+        jk = pd.concat([pd.DataFrame([{'series': 0, **{'jk2_%d' % i: x for i, x in enumerate(j0[:3])}}]), jk])
+    except Exception:  # input without a kSpace Jastrow: start at series 1
+        pass
+    # RPA reference: the jk2 that makes u_T = FT[u_sr] - jk2 equal Gaskell RPA, i.e.
+    # FT[u_sr](k) - u_RPA(k), with FT[u_sr] of the final step's B-spline J2 (~+5 at p325)
+    try:
+        axes, nelec = _cell(L)
+        rs = axes_pos.rs(axes, nelec)
+        xp = L.files[(L.steps[-1], '.opt.xml')]
+        doc = xml.read(str(xp))
+        k = jastrow.kshells(axes, jastrow.jk2_of(doc)[1])[:3]
+        jref = jastrow._usrk_with_axes(k, doc, axes) - jastrow.rpa_uk(k, rs, jastrow.chc.heg_kfermi(rs))
+    except Exception:  # no cell or no J2: plot without the reference
+        jref = []
+    for i in range(3):
+        if 'jk2_%d' % i in jk:
+            ln, = axs[2].plot(jk['series'], jk['jk2_%d' % i], marker='o', ms=4, lw=1.2, label='jk2[%d]' % i)
+            if i < len(jref):
+                axs[2].axhline(jref[i], c=ln.get_color(), ls=':', lw=1.2)
+    if len(jref):
+        axs[2].plot([], [], c='k', ls=':', lw=1.2, label='RPA')
+    axs[2].set_ylabel('jk2 (measured wf)')
+    axs[2].legend(frameon=False, fontsize=8, ncol=3)
+    axs[2].set_xlabel('series')
+    for a in axs:
+        if best is not None:
+            a.axvline(best, c=BAD, ls='--', lw=1)
+        a.spines[['top', 'right']].set_visible(False)
+        a.grid(alpha=0.25, lw=0.6)
+    p = L.path.resolve()
+    axs[0].set_title('%s/%s/%s  (%d steps)%s' % (p.parent.parent.name, p.parent.name, p.name, len(L.steps),
+                     '' if best is None else '\nbest 0.9E+0.1V: series %d (dashed)' % best), fontsize=10)
+    axs[2].xaxis.get_major_locator().set_params(integer=True)
+    fig.savefig(png, dpi=130, bbox_inches='tight')
+    plt.close(fig)
+    return best
+
+
 def check_opt(opt_dir, nequil=8):
     opt_dir = Path(opt_dir)
     L = discover_opt(opt_dir)
@@ -307,6 +367,11 @@ def check_opt(opt_dir, nequil=8):
             plot_uk(L, out / 'uk.png')
         except Exception as ex:  # the figure is a convenience: never fails the check
             notes.append('uk.png not written: %s: %s' % (type(ex).__name__, ex))
+            last['notes'] = notes
+        try:
+            plot_ev(L, df, out / 'ev.png')
+        except Exception as ex:  # the figure is a convenience: never fails the check
+            notes.append('ev.png not written: %s: %s' % (type(ex).__name__, ex))
             last['notes'] = notes
     for old in ('opt_trace.csv', 'opt.scalar.dat'):  # earlier qmcclean names of this table
         if (out / old).exists():

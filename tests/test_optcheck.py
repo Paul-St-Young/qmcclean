@@ -51,6 +51,19 @@ def test_opt_outputs(tmp_path):
     assert not list((opt / 'qmcclean').glob('*.tmp*'))
 
 
+def test_opt_ev_png(tmp_path):
+    from qmcclean.layout import discover_opt
+    from qmcclean.optcheck import plot_ev, trace
+    opt = make_opt(tmp_path, converged=True)
+    rep = check_opt(opt, nequil=8)
+    assert 'ev.png not written' not in str(rep.last.get('notes'))
+    assert (opt / 'qmcclean' / 'ev.png').stat().st_size > 1000
+    L = discover_opt(opt)
+    df = trace(L, 8)[0]
+    s = 0.9 * df['E'] + 0.1 * df['V']
+    assert plot_ev(L, df, tmp_path / 'ev.png') == int(df['series'][s.idxmin()])
+
+
 def test_opt_too_few_steps(tmp_path):
     opt = make_opt(tmp_path, nstep=1)
     rep = check_opt(opt, nequil=8)
