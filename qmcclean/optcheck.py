@@ -259,8 +259,8 @@ def plot_uk(L, png, kmax=3.0):
 
 
 def plot_ev(L, df, png):
-    """ev.png for an opt run: E, V and jk2[0:3] vs series. Series N measures opt.s(N-1).opt.xml
-    (series 0 the input), so jk2 of step s is drawn at s+1, the series that measured it. The
+    """ev.png for an opt run: E, V and k^2 u_T(k) of the first 3 k-shells vs series. Series N measures opt.s(N-1).opt.xml
+    (series 0 the input), so step s is drawn at s+1, the series that measured it. The
     series with the lowest 0.9E+0.1V is marked. Returns that series (None if E/V are missing)."""
     import matplotlib
     matplotlib.use('Agg')
@@ -283,25 +283,28 @@ def plot_ev(L, df, png):
         jk = pd.concat([pd.DataFrame([{'series': 0, **{'jk2_%d' % i: x for i, x in enumerate(j0[:3])}}]), jk])
     except Exception:  # input without a kSpace Jastrow: start at series 1
         pass
-    # RPA reference: the jk2 that makes u_T = FT[u_sr] - jk2 equal Gaskell RPA, i.e.
-    # FT[u_sr](k) - u_RPA(k), with FT[u_sr] of the final step's B-spline J2 (~+5 at p325)
+    # k^2 u_T(k) = k^2 (FT[u_sr](k) - jk2) on the first 3 shells, as in uk.png, with FT[u_sr] of the
+    # final step's B-spline J2 (it moves ~0.05 between steps); dotted: Gaskell RPA k^2 u_RPA(k)
     try:
         axes, nelec = _cell(L)
         rs = axes_pos.rs(axes, nelec)
-        xp = L.files[(L.steps[-1], '.opt.xml')]
-        doc = xml.read(str(xp))
+        doc = xml.read(str(L.files[(L.steps[-1], '.opt.xml')]))
         k = jastrow.kshells(axes, jastrow.jk2_of(doc)[1])[:3]
-        jref = jastrow._usrk_with_axes(k, doc, axes) - jastrow.rpa_uk(k, rs, jastrow.chc.heg_kfermi(rs))
-    except Exception:  # no cell or no J2: plot without the reference
-        jref = []
+        usr = jastrow._usrk_with_axes(k, doc, axes)
+        uR = jastrow.rpa_uk(k, rs, jastrow.chc.heg_kfermi(rs))
+    except Exception:  # no cell or no J2: fall back to the raw jk2 coefficients
+        k = []
     for i in range(3):
         if 'jk2_%d' % i in jk:
-            ln, = axs[2].plot(jk['series'], jk['jk2_%d' % i], marker='o', ms=4, lw=1.2, label='jk2[%d]' % i)
-            if i < len(jref):
-                axs[2].axhline(jref[i], c=ln.get_color(), ls=':', lw=1.2)
-    if len(jref):
+            if i < len(k):
+                ln, = axs[2].plot(jk['series'], k[i] ** 2 * (usr[i] - jk['jk2_%d' % i]), marker='o', ms=4,
+                                  lw=1.2, label='k = %.3f' % k[i])
+                axs[2].axhline(k[i] ** 2 * uR[i], c=ln.get_color(), ls=':', lw=1.2)
+            else:
+                axs[2].plot(jk['series'], jk['jk2_%d' % i], marker='o', ms=4, lw=1.2, label='jk2[%d]' % i)
+    if len(k):
         axs[2].plot([], [], c='k', ls=':', lw=1.2, label='RPA')
-    axs[2].set_ylabel('jk2 (measured wf)')
+    axs[2].set_ylabel('$k^2 u_k$' if len(k) else 'jk2 (measured wf)')
     axs[2].legend(frameon=False, fontsize=8, ncol=3)
     axs[2].set_xlabel('series')
     for a in axs:
